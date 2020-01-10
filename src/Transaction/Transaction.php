@@ -1,40 +1,20 @@
 <?php
 /**
- * Shop System SDK - Terms of Use
- *
- * The SDK offered are provided free of charge by Wirecard AG and are explicitly not part
- * of the Wirecard AG range of products and services.
- *
- * They have been tested and approved for full functionality in the standard configuration
- * (status on delivery) of the corresponding shop system. They are under General Public
- * License Version 3 (GPLv3) and can be used, developed and passed on to third parties under
- * the same terms.
- *
- * However, Wirecard AG does not provide any guarantee or accept any liability for any errors
- * occurring when used in an enhanced, customized shop system configuration.
- *
- * Operation in an enhanced, customized configuration is at your own risk and requires a
- * comprehensive test phase by the user of the plugin.
- *
- * Customers use the SDK at their own risk. Wirecard AG does not guarantee their full
- * functionality neither does Wirecard AG assume liability for any disadvantages related to
- * the use of the SDK. Additionally, Wirecard AG does not guarantee the full functionality
- * for customized shop systems or installed SDK of other vendors of plugins within the same
- * shop system.
- *
- * Customers are responsible for testing the SDK's functionality before starting productive
- * operation.
- *
- * By installing the SDK into the shop system the customer agrees to these terms of use.
- * Please do not use the SDK if you do not agree to these terms of use!
+ * Shop System SDK:
+ * - Terms of Use can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/_TERMS_OF_USE
+ * - License can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/LICENSE
  */
 
 namespace Wirecard\PaymentSdk\Transaction;
 
 use Locale;
+use Wirecard\PaymentSdk\Constant\IsoTransactionType;
 use Wirecard\PaymentSdk\Entity\Amount;
 use Wirecard\PaymentSdk\Entity\Browser;
 use Wirecard\PaymentSdk\Entity\CustomFieldCollection;
+use Wirecard\PaymentSdk\Entity\RiskInfo;
 use Wirecard\PaymentSdk\Entity\Periodic;
 use Wirecard\PaymentSdk\Entity\Redirect;
 use Wirecard\PaymentSdk\Exception\MandatoryFieldMissingException;
@@ -72,7 +52,11 @@ abstract class Transaction extends Risk
     const TYPE_VOID_PURCHASE = 'void-purchase';
     const TYPE_VOID_DEBIT= 'void-debit';
     const TYPE_DEPOSIT = 'deposit';
-
+    const TYPE_VOID_REFUND_CAPTURE = 'void-refund-capture';
+    const TYPE_VOID_REFUND_PURCHASE = 'void-refund-purchase';
+    const TYPE_VOID_CREDIT = 'void-credit';
+    const TYPE_CHECK_PAYER_RESPONSE = 'check-payer-response';
+    
 
     /**
      * @var Amount
@@ -153,6 +137,21 @@ abstract class Transaction extends Risk
      * @var array
      */
     protected $articleNumbers = [];
+
+    /**
+     * @var string
+     */
+    protected $endpoint;
+
+    /**
+     * @var RiskInfo
+     */
+    private $riskInfo;
+
+    /**
+     * @var IsoTransactionType
+     */
+    protected $isoTransactionType;
 
     /**
      * @param string $entryMode
@@ -352,6 +351,56 @@ abstract class Transaction extends Risk
     }
 
     /**
+     * @param $riskInfo
+     * @return $this
+     * @since 3.8.0
+     */
+    public function setRiskInfo($riskInfo)
+    {
+        if (!$riskInfo instanceof RiskInfo) {
+            throw new \InvalidArgumentException(
+                'Merchant Risk Indicator must be of type RiskInfo.'
+            );
+        }
+        $this->riskInfo = $riskInfo;
+        return $this;
+    }
+
+    /**
+     * @return RiskInfo
+     * @since 3.8.0
+     */
+    public function getRiskInfo()
+    {
+        return $this->riskInfo;
+    }
+
+    /**
+     * @param $isoTransactionType
+     * @return $this
+     * @since 3.8.0
+     */
+    public function setIsoTransactionType($isoTransactionType)
+    {
+        if (!IsoTransactionType::isValid($isoTransactionType)) {
+            throw new \InvalidArgumentException('ISO transaction type preference is invalid.');
+        }
+
+        $this->isoTransactionType = $isoTransactionType;
+
+        return $this;
+    }
+
+    /**
+     * @return IsoTransactionType
+     * @since 3.8.0
+     */
+    public function getIsoTransactionType()
+    {
+        return $this->isoTransactionType;
+    }
+
+    /**
      * @throws MandatoryFieldMissingException
      * @throws UnsupportedOperationException
      * @return array
@@ -374,10 +423,6 @@ abstract class Transaction extends Risk
 
         if (null !== $this->parentTransactionId) {
             $result[self::PARAM_PARENT_TRANSACTION_ID] = $this->parentTransactionId;
-        }
-
-        if (array_key_exists('REMOTE_ADDR', $_SERVER) && !isset($result['ip-address'])) {
-            $result['ip-address'] = $_SERVER['REMOTE_ADDR'];
         }
 
         if (null !== $this->notificationUrl) {
@@ -406,7 +451,10 @@ abstract class Transaction extends Risk
         if (null !== $this->locale) {
             $result['locale'] = $this->locale;
         } else {
-            $result['locale'] = substr(Locale::acceptFromHttp($_SERVER['HTTP_ACCEPT_LANGUAGE']), 0, 2);
+            $result['locale'] = 'en';
+            if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+                $result['locale'] = substr(Locale::acceptFromHttp($_SERVER['HTTP_ACCEPT_LANGUAGE']), 0, 2);
+            }
         }
 
         if (null !== $this->entryMode) {
@@ -439,6 +487,14 @@ abstract class Transaction extends Risk
             if (count($browser) > 0) {
                 $result['browser'] = $this->browser->mappedProperties();
             }
+        }
+
+        if ($this->riskInfo instanceof RiskInfo) {
+            $result['risk-info'] = $this->riskInfo->mappedProperties();
+        }
+
+        if (null !== $this->isoTransactionType) {
+            $result['iso-transaction-type'] = $this->isoTransactionType;
         }
 
         return array_merge($result, $specificProperties);
@@ -541,6 +597,16 @@ abstract class Transaction extends Risk
     abstract protected function mappedSpecificProperties();
 
     /**
+     * @param $endpoint
+     * @return Transaction
+     */
+    public function setEndpoint($endpoint)
+    {
+        $this->endpoint = $endpoint;
+        return $this;
+    }
+
+    /**
      * return string
      */
     public function getEndpoint()
@@ -556,6 +622,15 @@ abstract class Transaction extends Risk
     {
         $this->redirect = $redirect;
         return $this;
+    }
+
+    /**
+     * @return Redirect
+     * @since 3.7.2
+     */
+    public function getRedirect()
+    {
+        return $this->redirect;
     }
 
     /**

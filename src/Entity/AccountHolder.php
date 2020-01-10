@@ -1,32 +1,10 @@
 <?php
 /**
- * Shop System SDK - Terms of Use
- *
- * The SDK offered are provided free of charge by Wirecard AG and are explicitly not part
- * of the Wirecard AG range of products and services.
- *
- * They have been tested and approved for full functionality in the standard configuration
- * (status on delivery) of the corresponding shop system. They are under General Public
- * License Version 3 (GPLv3) and can be used, developed and passed on to third parties under
- * the same terms.
- *
- * However, Wirecard AG does not provide any guarantee or accept any liability for any errors
- * occurring when used in an enhanced, customized shop system configuration.
- *
- * Operation in an enhanced, customized configuration is at your own risk and requires a
- * comprehensive test phase by the user of the plugin.
- *
- * Customers use the SDK at their own risk. Wirecard AG does not guarantee their full
- * functionality neither does Wirecard AG assume liability for any disadvantages related to
- * the use of the SDK. Additionally, Wirecard AG does not guarantee the full functionality
- * for customized shop systems or installed SDK of other vendors of plugins within the same
- * shop system.
- *
- * Customers are responsible for testing the SDK's functionality before starting productive
- * operation.
- *
- * By installing the SDK into the shop system the customer agrees to these terms of use.
- * Please do not use the SDK if you do not agree to these terms of use!
+ * Shop System SDK:
+ * - Terms of Use can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/_TERMS_OF_USE
+ * - License can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/LICENSE
  */
 
 namespace Wirecard\PaymentSdk\Entity;
@@ -68,6 +46,16 @@ class AccountHolder implements MappableEntity
     private $phone;
 
     /**
+     * @var string
+     */
+    private $mobilePhone;
+
+    /**
+     * @var string
+     */
+    private $workPhone;
+
+    /**
      * @var \DateTime
      */
     private $dateOfBirth;
@@ -91,6 +79,11 @@ class AccountHolder implements MappableEntity
      * @var string
      */
     private $socialSecurityNumber;
+
+    /**
+     * @var AccountInfo
+     */
+    private $accountInfo;
 
 
     public function __construct($simpleXmlElement = null)
@@ -137,6 +130,28 @@ class AccountHolder implements MappableEntity
     public function setPhone($phone)
     {
         $this->phone = $phone;
+        return $this;
+    }
+
+    /**
+     * @param $phone
+     * @return $this
+     * @since 3.8.0
+     */
+    public function setMobilePhone($phone)
+    {
+        $this->mobilePhone = $phone;
+        return $this;
+    }
+
+    /**
+     * @param $phone
+     * @return $this
+     * @since 3.8.0
+     */
+    public function setWorkPhone($phone)
+    {
+        $this->workPhone = $phone;
         return $this;
     }
 
@@ -212,6 +227,32 @@ class AccountHolder implements MappableEntity
     }
 
     /**
+     * @param AccountInfo $accountInfo
+     * @return $this
+     * @since 3.8.0
+     */
+    public function setAccountInfo($accountInfo)
+    {
+        if (!$accountInfo instanceof AccountInfo) {
+            throw new \InvalidArgumentException(
+                '3DS Requestor Authentication Information must be of type AccountInfo.'
+            );
+        }
+        $this->accountInfo = $accountInfo;
+
+        return $this;
+    }
+
+    /**
+     * @return AccountInfo
+     * @since 3.8.0
+     */
+    public function getAccountInfo()
+    {
+        return $this->accountInfo;
+    }
+
+    /**
      * @return array
      */
     public function mappedProperties()
@@ -238,6 +279,14 @@ class AccountHolder implements MappableEntity
             $result['phone'] = $this->phone;
         }
 
+        if (!is_null($this->mobilePhone)) {
+            $result['mobile-phone'] = $this->mobilePhone;
+        }
+
+        if (!is_null($this->workPhone)) {
+            $result['work-phone'] = $this->workPhone;
+        }
+
         if (!is_null($this->address)) {
             $result['address'] = $this->address->mappedProperties();
         }
@@ -256,6 +305,10 @@ class AccountHolder implements MappableEntity
 
         if (!is_null($this->shippingMethod)) {
             $result['shipping-method'] = $this->shippingMethod;
+        }
+
+        if (!is_null($this->accountInfo)) {
+            $result['account-info'] = $this->accountInfo->mappedProperties();
         }
 
         return $result;
@@ -293,6 +346,14 @@ class AccountHolder implements MappableEntity
             $result['phone'] = $this->phone;
         }
 
+        if (!is_null($this->mobilePhone)) {
+            $result['mobile_phone'] = $this->mobilePhone;
+        }
+
+        if (!is_null($this->workPhone)) {
+            $result['work_phone'] = $this->workPhone;
+        }
+
         if (!is_null($this->address)) {
             $result = array_merge($result, $this->address->mappedSeamlessProperties());
         }
@@ -307,6 +368,10 @@ class AccountHolder implements MappableEntity
 
         if (!is_null($this->socialSecurityNumber)) {
             $result['consumer_social_security_number'] = $this->socialSecurityNumber;
+        }
+
+        if (!is_null($this->accountInfo)) {
+            $result = array_merge($result, $this->accountInfo->mappedSeamlessProperties());
         }
 
         return $result;
@@ -377,13 +442,19 @@ class AccountHolder implements MappableEntity
         return $key;
     }
 
+    /**
+     * @param $simpleXmlElement
+     * @return $this
+     */
     private function parseAccountHolder($simpleXmlElement)
     {
         $fields = [
-            'first-name' => 'setFirstName',
-            'last-name' => 'setLastName',
-            'email' => 'setEmail',
-            'phone' => 'setPhone'
+            'first-name'   => 'setFirstName',
+            'last-name'    => 'setLastName',
+            'email'        => 'setEmail',
+            'phone'        => 'setPhone',
+            'work-phone'   => 'setWorkPhone',
+            'mobile-phone' => 'setMobilePhone',
         ];
 
         if (isset($simpleXmlElement->{'date-of-birth'})) {
@@ -413,6 +484,10 @@ class AccountHolder implements MappableEntity
 
             if (isset($simpleXmlElement->address->street2)) {
                 $address->setStreet2(strval($simpleXmlElement->address->street2));
+            }
+
+            if (isset($simpleXmlElement->address->street3)) {
+                $address->setStreet3(strval($simpleXmlElement->address->street3));
             }
 
             if (isset($simpleXmlElement->address->{'house-extension'})) {

@@ -1,32 +1,10 @@
 <?php
 /**
- * Shop System SDK - Terms of Use
- *
- * The SDK offered are provided free of charge by Wirecard AG and are explicitly not part
- * of the Wirecard AG range of products and services.
- *
- * They have been tested and approved for full functionality in the standard configuration
- * (status on delivery) of the corresponding shop system. They are under General Public
- * License Version 3 (GPLv3) and can be used, developed and passed on to third parties under
- * the same terms.
- *
- * However, Wirecard AG does not provide any guarantee or accept any liability for any errors
- * occurring when used in an enhanced, customized shop system configuration.
- *
- * Operation in an enhanced, customized configuration is at your own risk and requires a
- * comprehensive test phase by the user of the plugin.
- *
- * Customers use the SDK at their own risk. Wirecard AG does not guarantee their full
- * functionality neither does Wirecard AG assume liability for any disadvantages related to
- * the use of the SDK. Additionally, Wirecard AG does not guarantee the full functionality
- * for customized shop systems or installed SDK of other vendors of plugins within the same
- * shop system.
- *
- * Customers are responsible for testing the SDK's functionality before starting productive
- * operation.
- *
- * By installing the SDK into the shop system the customer agrees to these terms of use.
- * Please do not use the SDK if you do not agree to these terms of use!
+ * Shop System SDK:
+ * - Terms of Use can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/_TERMS_OF_USE
+ * - License can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/LICENSE
  */
 
 namespace Wirecard\PaymentSdk\Config;
@@ -47,8 +25,6 @@ use Wirecard\PaymentSdk\Transaction\RatepayInvoiceTransaction;
  */
 class Config
 {
-    const VERSION_FILE = __DIR__ . '/../../VERSION';
-
     /**
      * @var string
      */
@@ -115,20 +91,31 @@ class Config
         $baseUrl,
         $httpUser,
         $httpPassword,
-        $defaultCurrency = 'EUR'
+        $defaultCurrency = 'EUR',
+        $baseUrlWppv2 = ''
     ) {
         $this->baseUrl = $baseUrl;
         $this->httpUser = $httpUser;
         $this->httpPassword = $httpPassword;
         $this->defaultCurrency = $defaultCurrency;
-
+        $this->baseUrlWppv2 = $baseUrlWppv2;
         // During development the default debug level is set to DEBUG
         $this->logLevel = Logger::DEBUG;
 
         $this->shopSystem = 'paymentSDK-php';
 
-        $version = $this->getVersionFromFile(self::VERSION_FILE);
+        $version = $this->getVersionFromFile(__DIR__ . '/../../VERSION');
         $this->shopSystemVersion = $version;
+    }
+
+    /**
+     * @return string
+     *
+     * @since 3.7.1
+     */
+    public function getShopSystemVersion()
+    {
+        return $this->shopSystemVersion;
     }
 
     /**
@@ -244,6 +231,28 @@ class Config
         }
 
         return array('headers' => $data);
+    }
+
+    /**
+     * Get shop information for nvp request
+     *
+     * @return array
+     *
+     * @since 3.7.1
+     */
+    public function getNvpShopInformation()
+    {
+        $data = array(
+            'shop_system_name'    => $this->shopSystem,
+            'shop_system_version' => $this->shopSystemVersion,
+        );
+
+        if ($this->pluginName && $this->pluginVersion) {
+            $data['plugin_name']    = $this->pluginName;
+            $data['plugin_version'] = $this->pluginVersion;
+        }
+
+        return $data;
     }
 
     /**

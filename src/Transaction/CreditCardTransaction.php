@@ -1,32 +1,10 @@
 <?php
 /**
- * Shop System SDK - Terms of Use
- *
- * The SDK offered are provided free of charge by Wirecard AG and are explicitly not part
- * of the Wirecard AG range of products and services.
- *
- * They have been tested and approved for full functionality in the standard configuration
- * (status on delivery) of the corresponding shop system. They are under General Public
- * License Version 3 (GPLv3) and can be used, developed and passed on to third parties under
- * the same terms.
- *
- * However, Wirecard AG does not provide any guarantee or accept any liability for any errors
- * occurring when used in an enhanced, customized shop system configuration.
- *
- * Operation in an enhanced, customized configuration is at your own risk and requires a
- * comprehensive test phase by the user of the plugin.
- *
- * Customers use the SDK at their own risk. Wirecard AG does not guarantee their full
- * functionality neither does Wirecard AG assume liability for any disadvantages related to
- * the use of the SDK. Additionally, Wirecard AG does not guarantee the full functionality
- * for customized shop systems or installed SDK of other vendors of plugins within the same
- * shop system.
- *
- * Customers are responsible for testing the SDK's functionality before starting productive
- * operation.
- *
- * By installing the SDK into the shop system the customer agrees to these terms of use.
- * Please do not use the SDK if you do not agree to these terms of use!
+ * Shop System SDK:
+ * - Terms of Use can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/_TERMS_OF_USE
+ * - License can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/LICENSE
  */
 
 
@@ -47,6 +25,8 @@ class CreditCardTransaction extends Transaction implements Reservable
 {
     const NAME = 'creditcard';
     const TYPE_CHECK_ENROLLMENT = 'check-enrollment';
+    const DESCRIPTOR_LENGTH = 64;
+    const DESCRIPTOR_ALLOWED_CHAR_REGEX = "/[^a-zA-Z0-9]/u";
 
     /**
      * @var string
@@ -115,6 +95,15 @@ class CreditCardTransaction extends Transaction implements Reservable
 
     /**
      * @return string
+     * @since 4.0.0
+     */
+    public function getTokenId()
+    {
+        return $this->tokenId;
+    }
+
+    /**
+     * @return string
      */
     public function getTermUrl()
     {
@@ -166,6 +155,10 @@ class CreditCardTransaction extends Transaction implements Reservable
      */
     public function getEndpoint()
     {
+        if (isset($this->endpoint)) {
+            return $this->endpoint;
+        }
+
         return self::ENDPOINT_PAYMENTS;
     }
 
@@ -175,15 +168,6 @@ class CreditCardTransaction extends Transaction implements Reservable
     public function getThreeD()
     {
         return $this->isThreeD();
-    }
-
-    /**
-     * @param string $descriptor
-     * @since 3.4.0
-     */
-    public function setDescriptor($descriptor)
-    {
-        $this->descriptor = preg_replace('/[^a-zA-Z0-9]/', '', $descriptor);
     }
 
     /**
@@ -301,28 +285,25 @@ class CreditCardTransaction extends Transaction implements Reservable
         if (!$this->parentTransactionId) {
             throw new MandatoryFieldMissingException('No transaction for cancellation set.');
         }
+
         switch ($this->parentTransactionType) {
             case self::TYPE_AUTHORIZATION:
             case self::TYPE_REFERENCED_AUTHORIZATION:
-                $transactionType = self::TYPE_VOID_AUTHORIZATION;
-                break;
+                return self::TYPE_VOID_AUTHORIZATION;
             case self::TYPE_REFUND_CAPTURE:
+                return self::TYPE_VOID_REFUND_CAPTURE;
             case self::TYPE_REFUND_PURCHASE:
+                return self::TYPE_VOID_REFUND_PURCHASE;
             case self::TYPE_CREDIT:
-                $transactionType = 'void-' . $this->parentTransactionType;
-                break;
+                return self::TYPE_VOID_CREDIT;
             case self::TYPE_PURCHASE:
             case self::TYPE_REFERENCED_PURCHASE:
-                $transactionType = self::TYPE_VOID_PURCHASE;
-                break;
+                return self::TYPE_VOID_PURCHASE;
             case self::TYPE_CAPTURE_AUTHORIZATION:
-                $transactionType = self::TYPE_VOID_CAPTURE;
-                break;
+                return self::TYPE_VOID_CAPTURE;
             default:
                 throw new UnsupportedOperationException('The transaction can not be canceled.');
         }
-
-        return $transactionType;
     }
 
     /**
@@ -332,15 +313,15 @@ class CreditCardTransaction extends Transaction implements Reservable
     protected function retrieveTransactionTypeForRefund()
     {
         if (!$this->parentTransactionId) {
-            throw new MandatoryFieldMissingException('No transaction for cancellation set.');
+            throw new MandatoryFieldMissingException('No transaction for refund set.');
         }
 
         switch ($this->parentTransactionType) {
-            case $this::TYPE_PURCHASE:
-            case $this::TYPE_REFERENCED_PURCHASE:
-                return 'refund-purchase';
-            case $this::TYPE_CAPTURE_AUTHORIZATION:
-                return 'refund-capture';
+            case self::TYPE_PURCHASE:
+            case self::TYPE_REFERENCED_PURCHASE:
+                return self::TYPE_REFUND_PURCHASE;
+            case self::TYPE_CAPTURE_AUTHORIZATION:
+                return self::TYPE_REFUND_CAPTURE;
             default:
                 throw new UnsupportedOperationException('The transaction can not be refunded.');
         }
@@ -404,6 +385,7 @@ class CreditCardTransaction extends Transaction implements Reservable
 
     /**
      * @return boolean
+     * @deprecated 4.0.0 use getIsThreeD
      */
     protected function isThreeD()
     {

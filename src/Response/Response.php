@@ -1,38 +1,14 @@
 <?php
 /**
- * Shop System SDK - Terms of Use
- *
- * The SDK offered are provided free of charge by Wirecard AG and are explicitly not part
- * of the Wirecard AG range of products and services.
- *
- * They have been tested and approved for full functionality in the standard configuration
- * (status on delivery) of the corresponding shop system. They are under General Public
- * License Version 3 (GPLv3) and can be used, developed and passed on to third parties under
- * the same terms.
- *
- * However, Wirecard AG does not provide any guarantee or accept any liability for any errors
- * occurring when used in an enhanced, customized shop system configuration.
- *
- * Operation in an enhanced, customized configuration is at your own risk and requires a
- * comprehensive test phase by the user of the plugin.
- *
- * Customers use the SDK at their own risk. Wirecard AG does not guarantee their full
- * functionality neither does Wirecard AG assume liability for any disadvantages related to
- * the use of the SDK. Additionally, Wirecard AG does not guarantee the full functionality
- * for customized shop systems or installed SDK of other vendors of plugins within the same
- * shop system.
- *
- * Customers are responsible for testing the SDK's functionality before starting productive
- * operation.
- *
- * By installing the SDK into the shop system the customer agrees to these terms of use.
- * Please do not use the SDK if you do not agree to these terms of use!
+ * Shop System SDK:
+ * - Terms of Use can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/_TERMS_OF_USE
+ * - License can be found under:
+ * https://github.com/wirecard/paymentSDK-php/blob/master/LICENSE
  */
 
 namespace Wirecard\PaymentSdk\Response;
 
-use chillerlan\QRCode\QRCode;
-use chillerlan\QRCode\QROptions;
 use SimpleXMLElement;
 use Wirecard\PaymentSdk\Entity\AccountHolder;
 use Wirecard\PaymentSdk\Entity\Amount;
@@ -41,11 +17,11 @@ use Wirecard\PaymentSdk\Entity\Card;
 use Wirecard\PaymentSdk\Entity\CustomField;
 use Wirecard\PaymentSdk\Entity\CustomFieldCollection;
 use Wirecard\PaymentSdk\Entity\PaymentDetails;
+use Wirecard\PaymentSdk\Entity\RawCustomField;
 use Wirecard\PaymentSdk\Entity\Status;
 use Wirecard\PaymentSdk\Entity\StatusCollection;
 use Wirecard\PaymentSdk\Entity\TransactionDetails;
 use Wirecard\PaymentSdk\Exception\MalformedResponseException;
-use Wirecard\PaymentSdk\TransactionService;
 
 /**
  * Class Response
@@ -404,14 +380,59 @@ abstract class Response
         if (isset($this->simpleXml->{'custom-fields'})) {
             /** @var SimpleXMLElement $field */
             foreach ($this->simpleXml->{'custom-fields'}->children() as $field) {
-                if (isset($field->attributes()->{'field-name'}) && isset($field->attributes()->{'field-value'})) {
-                    $name = substr((string)$field->attributes()->{'field-name'}, strlen(CustomField::PREFIX));
-                    $value = (string)$field->attributes()->{'field-value'};
-                    $customFieldCollection->add(new CustomField($name, $value));
+                $customField = $this->convertToCustomField($field);
+                if (!is_null($customField)) {
+                    $customFieldCollection->add($customField);
                 }
             }
         }
         $this->customFields = $customFieldCollection;
+    }
+
+    /**
+     * Convert the xml field into a CustomField object
+     *
+     * Return null if field name is empty or xml object does not provides field name/field value as attribute
+     *
+     * @param SimpleXMLElement $field
+     * @return null|CustomField
+     */
+    private function convertToCustomField($field)
+    {
+        if (!empty($field->attributes())) {
+            if (isset($field->attributes()->{'field-name'}) && isset($field->attributes()->{'field-value'})) {
+                $rawName = (string)$field->attributes()->{'field-name'};
+                list($normalizedName, $prefix) = $this->splitFieldNameAndPrefix($rawName);
+                $value = (string)$field->attributes()->{'field-value'};
+                if (!empty($normalizedName)) {
+                    return new CustomField($normalizedName, $value, $prefix);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Auto detect the PHPSDK prefix for customfields
+     *
+     * @param string $rawName
+     * @return array
+     */
+    private function splitFieldNameAndPrefix($rawName)
+    {
+        $normalizedName = '';
+        $prefix = '';
+
+        if (!empty($rawName)) {
+            if (strpos($rawName, CustomField::DEFAULT_PREFIX) === 0) {
+                $normalizedName = substr($rawName, strlen(CustomField::DEFAULT_PREFIX));
+                $prefix = CustomField::DEFAULT_PREFIX;
+            } else {
+                $normalizedName = $rawName;
+            }
+        }
+
+        return [$normalizedName, $prefix];
     }
 
     /**
@@ -448,35 +469,6 @@ abstract class Response
     public function getRequestedAmount()
     {
         return $this->requestedAmount;
-    }
-
-    /**
-     * Generate QrCode from authorization code. Available only for payment methods returning
-     * authorization-code (e.g. WeChat).
-     *
-     * Note: This method uses gd2 library. If you can't use gd2, you must set $type to QRCode::OUTPUT_MARKUP_SVG
-     * or QRCode::OUTPUT_STRING_TEXT.
-     *
-     * @param string $type
-     * @param int $scale
-     *
-     * @since 3.1.1
-     * @return string
-     */
-    public function getQrCode($type = QRCode::OUTPUT_IMAGE_PNG, $scale = 5)
-    {
-        try {
-            $outputOptions = new QROptions([
-                'outputType' => $type,
-                'scale' => $scale,
-                'version' => 5
-            ]);
-
-            $image = new QRCode($outputOptions);
-            return $image->render($this->findElement('authorization-code'));
-        } catch (\Exception $ignored) {
-            throw new MalformedResponseException('Authorization-code not found in response.');
-        }
     }
 
     public function getPaymentDetails()

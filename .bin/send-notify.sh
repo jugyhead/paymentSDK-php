@@ -1,5 +1,12 @@
 #!/bin/bash
+# Shop System SDK:
+# - Terms of Use can be found under:
+# https://github.com/wirecard/paymentSDK-php/blob/master/_TERMS_OF_USE
+# - License can be found under:
+# https://github.com/wirecard/paymentSDK-php/blob/master/LICENSE
 
+PREVIEW_LINK='https://raw.githack.com/wirecard/reports'
+REPORT_FILE='report.html'
 #choose slack channel depending on the gateway
 if [[ ${GATEWAY} = "NOVA" ]]; then
   CHANNEL='shs-ui-nova'
@@ -19,23 +26,22 @@ curl -X POST -H 'Content-type: application/json' \
     Build Number: ${TRAVIS_BUILD_NUMBER}\n
     Branch: ${TRAVIS_BRANCH}', 'channel': '${CHANNEL}'}" ${SLACK_ROOMS}
 
-#send links to all screenshots obtained
-for f in tests/_output/*.fail.png; do
-    FILENAME=$(basename -- "${f}")
-    TESTNAME="${FILENAME%%.fail.*}"
+FAILED_TESTS=$(ls -1q tests/_output/*.fail.png | wc -l)
 
-    #send screenshot links
-    curl -X POST -H 'Content-type: application/json' --data "{
-        'attachments': [
-            {
-                'fallback': 'Failed test screenshot',
-                'text': 'See screenshot of ${TESTNAME} test here: \
-                ${REPO_LINK}/tree/${SCREENSHOT_COMMIT_HASH}/${PROJECT_FOLDER}/${GATEWAY}/${TODAY}/${FILENAME}',
-                'color': '#764FA5'
-            }
-        ], 'channel': '${CHANNEL}'
-    }"  ${SLACK_ROOMS};
-done
+
+# send link to the report into slack chat room
+curl -X POST -H 'Content-type: application/json' --data "{
+    'attachments': [
+        {
+            'fallback': 'Failed test data',
+            'text': 'There are failed tests.
+             Test report: ${PREVIEW_LINK}/${SCREENSHOT_COMMIT_HASH}/${PROJECT_FOLDER}/${GATEWAY}/${TODAY}/${REPORT_FILE} .
+             All screenshots can be found  ${REPO_LINK}/tree/${SCREENSHOT_COMMIT_HASH}/${PROJECT_FOLDER}/${GATEWAY}/${TODAY} .',
+            'color': '#764FA5'
+        }
+    ], 'channel': '${CHANNEL}'
+}"  ${SLACK_ROOMS};
+
 
 
 
